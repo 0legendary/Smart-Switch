@@ -33,6 +33,8 @@ function App() {
     try {
       setLoading(true);
       const res = await axios.get(`${API}/status`);
+      console.log("Status:", res.data);
+
       setStates(res.data);
     } catch (err) {
       console.error("Error fetching status:", err);
@@ -156,7 +158,7 @@ function App() {
         ) : (
           // Switch List
           <div className="space-y-5">
-            {Object.keys(states).map((id) => {
+            {["switch1", "switch2"].map((id) => {
               const isOn = states[id];
               const info = switchInfo[id] || {
                 label: id.toUpperCase(),
