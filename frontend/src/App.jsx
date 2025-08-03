@@ -142,14 +142,14 @@ function App() {
                   whileTap={{ scale: 0.95 }}
                   onClick={() => toggleSwitch(id)}
                   className={`w-full flex justify-between items-center px-5 py-3 rounded-xl
-          transition-all duration-400 border-2 focus:outline-none
+          transition-all duration-400 border-1 focus:outline-none
           ${
             isOn
               ? "border-green-600 bg-gray-800 bg-gradient-to-r from-black via-gray-900 to-black shadow-inner text-white"
               : "border-gray-700 bg-gray-900 hover:border-gray-500 hover:bg-gray-800 text-gray-400"
           }
           ring-offset-2 ring-green-700 ring-offset-gray-900
-          focus:ring-4`}
+          focus:ring-1`}
                   aria-pressed={isOn}
                   aria-label={`Toggle switch ${info.label}`}
                   type="button"
