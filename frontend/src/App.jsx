@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:4000";
+const API = "https://smart-switch.onrender.com";
 
 function App() {
   const [states, setStates] = useState({ switch1: false, switch2: false });
