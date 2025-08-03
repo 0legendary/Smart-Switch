@@ -5,13 +5,14 @@ import { motion } from "framer-motion";
 import { Loader2, WifiOff, Wifi, Lightbulb, Wind } from "lucide-react";
 import React from "react";
 
-const API = "https://smart-switch.onrender.com";
-// const API = "http://localhost:4000";
+// const API = "https://smart-switch.onrender.com";
+const API = import.meta.env.VITE_API_URL;
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
 
 function App() {
   const [states, setStates] = useState({ switch1: false, switch2: false });
   const [espConnected, setEspConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const wsRef = useRef(null);
 
   const switchInfo = {
@@ -30,6 +31,7 @@ function App() {
 
   const fetchStatus = async () => {
     try {
+      setLoading(true);
       const res = await axios.get(`${API}/status`);
       setStates(res.data);
     } catch (err) {
@@ -40,7 +42,8 @@ function App() {
   };
 
   const setupWebSocket = () => {
-    const ws = new WebSocket("wss://smart-switch.onrender.com");
+    // const ws = new WebSocket("wss://smart-switch.onrender.com");
+    const ws = new WebSocket(SOCKET_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -71,9 +74,14 @@ function App() {
   const toggleSwitch = async (switchId) => {
     const newState = !states[switchId];
     try {
-      await axios.post(`${API}/update`, { switchId, state: newState });
+      const res = await axios.post(`${API}/update`, {
+        switchId,
+        state: newState,
+      });
+      if (!res?.data?.success) throw new Error("Failed to update switch state");
       setStates((prev) => ({ ...prev, [switchId]: newState }));
     } catch (err) {
+      await fetchStatus();
       console.error("Error updating switch:", err);
     }
   };
@@ -94,25 +102,25 @@ function App() {
       />
 
       {/* Container */}
-      <div className="relative z-10 bg-gray-900 bg-opacity-90 rounded-3xl shadow-2xl max-w-md w-full p-8 flex flex-col">
+      <div className="relative z-10 bg-gray-900 bg-opacity-90 rounded-3xl shadow-2xl max-w-md w-full px-8 py-4 pb-8 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-extrabold text-gray-100 tracking-wide">
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-6">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-gray-100 tracking-wide mt-4">
             Smart Switch
           </h1>
           <div
-            className={`flex items-center gap-2 px-3 py-1 rounded-full transition-all duration-300 font-semibold cursor-default select-none ${
+            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-full transition-all duration-300 font-semibold cursor-default select-none mt-4 ${
               espConnected
                 ? "bg-green-900 text-green-400 ring-2 ring-green-500"
                 : "bg-red-900 text-red-400 ring-2 ring-red-500"
             }`}
           >
             {espConnected ? (
-              <Wifi className="w-5 h-5" />
+              <Wifi className="w-4 h-4 sm:w-5 sm:h-5" />
             ) : (
-              <WifiOff className="w-5 h-5" />
+              <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" />
             )}
-            <span className="uppercase tracking-wider text-sm select-none">
+            <span className="uppercase tracking-wider text-xs sm:text-sm select-none">
               {espConnected ? "Connected" : "Offline"}
             </span>
           </div>
@@ -176,7 +184,7 @@ function App() {
       </div>
 
       {/* Custom animation styles */}
-      <style jsx>{`
+      <style>{`
         @keyframes bgGlow {
           0% {
             background-position: 0% 50%, 100% 30%, 50% 100%;
