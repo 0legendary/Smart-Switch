@@ -18,15 +18,18 @@ let switchStates = {
 
 const clients = new Map(); // Map<ws, { type: 'esp32' | 'web' }>
 
+let esp32Connection = null; // store ws instance of esp32
+
 // ------------------------- API Routes -------------------------
 
-// Get current state
 app.get('/status', (req, res) => {
   console.log('📥 GET /status');
-  res.json(switchStates);
+  res.json({
+    ...switchStates,
+    esp32Connected: !!esp32Connection,
+  });
 });
 
-// Update state from frontend
 app.post('/update', (req, res) => {
   const { switchId, state } = req.body;
 
@@ -37,11 +40,9 @@ app.post('/update', (req, res) => {
   }
 
   switchStates[switchId] = state;
-
   const payload = JSON.stringify({ switchId, state });
 
   let sentCount = 0;
-
   for (const [client, meta] of clients.entries()) {
     if (client.readyState === 1) {
       client.send(payload);
@@ -55,44 +56,59 @@ app.post('/update', (req, res) => {
 
 // ------------------------- WebSocket Server -------------------------
 
+function broadcastToFrontend(data) {
+  const payload = JSON.stringify(data);
+  let count = 0;
+
+  for (const [client, meta] of clients.entries()) {
+    if (meta.type === 'web' && client.readyState === 1) {
+      client.send(payload);
+      count++;
+    }
+  }
+
+  console.log(`📢 Sent to ${count} frontend clients:`, data);
+}
+
 wss.on('connection', (ws, req) => {
   console.log(`🔌 New WebSocket connection from ${req.socket.remoteAddress}`);
-
-  // Store connection as unknown until identified
   clients.set(ws, { type: 'unknown' });
 
-  // Send current state to newly connected client
-  ws.send(JSON.stringify(switchStates));
+  // Send current switch state immediately
+  ws.send(JSON.stringify({ ...switchStates, type: 'init' }));
 
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
       const { switchId, state, type } = data;
 
-      // First-time identify client (esp32 or web)
-      if (type === 'esp32' || type === 'web') {
-        clients.set(ws, { type });
-        console.log(`🆔 Client identified as: ${type}`);
+      if (type === 'esp32') {
+        clients.set(ws, { type: 'esp32' });
+        esp32Connection = ws;
+        console.log('🆔 ESP32 connected');
+        broadcastToFrontend({ type: 'esp32Status', connected: true });
         return;
       }
 
-      // If ESP32 sends updated state (e.g., manual override), sync backend
+      if (type === 'web') {
+        clients.set(ws, { type: 'web' });
+        console.log('🆔 Web client connected');
+        ws.send(JSON.stringify({ type: 'esp32Status', connected: !!esp32Connection }));
+        return;
+      }
+
+      // ESP32 sent manual state update (future case)
       if (switchId && typeof state === 'boolean') {
         if (!['switch1', 'switch2'].includes(switchId)) return;
 
         switchStates[switchId] = state;
 
-        const payload = JSON.stringify({ switchId, state });
-        let relayCount = 0;
-
+        const updatePayload = JSON.stringify({ switchId, state });
         for (const [client, meta] of clients.entries()) {
           if (client !== ws && client.readyState === 1) {
-            client.send(payload);
-            relayCount++;
+            client.send(updatePayload);
           }
         }
-
-        console.log(`🔁 Relayed update from ${req.socket.remoteAddress} to ${relayCount} other clients`);
       }
     } catch (err) {
       console.error('❌ Invalid message format:', message);
@@ -100,8 +116,16 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    console.log(`🔌 WebSocket client disconnected`);
+    const meta = clients.get(ws);
     clients.delete(ws);
+    console.log(`🔌 WebSocket client disconnected`);
+
+    // If it was the ESP32 client, clear reference and notify
+    if (meta?.type === 'esp32') {
+      esp32Connection = null;
+      console.log('❗ ESP32 disconnected');
+      broadcastToFrontend({ type: 'esp32Status', connected: false });
+    }
   });
 });
 

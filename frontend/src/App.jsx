@@ -42,7 +42,6 @@ function App() {
   };
 
   const setupWebSocket = () => {
-    // const ws = new WebSocket("wss://smart-switch.onrender.com");
     const ws = new WebSocket(SOCKET_URL);
     wsRef.current = ws;
 
@@ -53,14 +52,34 @@ function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (typeof data === "object" && !Array.isArray(data)) {
-          if ("switch1" in data || "switch2" in data) {
-            setStates((prev) => ({ ...prev, ...data }));
-          } else if ("switchId" in data && "state" in data) {
-            setStates((prev) => ({ ...prev, [data.switchId]: data.state }));
-          }
+
+        // Handle ESP32 connection status message
+        if (data.type === "esp32Status") {
+          setEspConnected(data.connected);
+          return;
         }
-        setEspConnected(true);
+
+        // Handle switch state init
+        if (data.type === "init") {
+          const { switch1, switch2 } = data;
+          setStates((prev) => ({
+            ...prev,
+            switch1: switch1 ?? prev.switch1,
+            switch2: switch2 ?? prev.switch2,
+          }));
+          return;
+        }
+
+        // Handle regular switch updates
+        if ("switchId" in data && "state" in data) {
+          setStates((prev) => ({ ...prev, [data.switchId]: data.state }));
+          return;
+        }
+
+        // Fallback: merged object
+        if ("switch1" in data || "switch2" in data) {
+          setStates((prev) => ({ ...prev, ...data }));
+        }
       } catch (e) {
         console.error("WS Message Error:", e);
       }
